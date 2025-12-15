@@ -1,0 +1,27 @@
+name: Deploy to EC2
+
+# This workflow is triggered on pushes to the 'master' branch
+on:
+  push:
+    branches:
+      - master
+
+# Environment variables available to all jobs in the workflow
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/clean-blog-app
+  IMAGE_TAG: latest
+
+jobs:
+  build-and-deploy:
+    name: Build, Push to ECR, and Deploy
+    runs-on: ubuntu-latest # The type of virtual machine the job will run on
+
+    steps:
+      # Step 1: Check out the repository's code
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
