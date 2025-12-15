@@ -1,21 +1,20 @@
+
 name: Deploy to EC2
 
-# This workflow is triggered on pushes to the 'master' branch
 on:
   push:
     branches:
       - master
 
-# Environment variables available to all jobs in the workflow
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: 249034256064.dkr.ecr.us-east-1.amazonaws.com/clean-blog-app
+  ECR_REPOSITORY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/clean-blog-app
   IMAGE_TAG: latest
 
 jobs:
   build-and-deploy:
     name: Build, Push to ECR, and Deploy
-    runs-on: ubuntu-latest # The type of virtual machine the job will run on
+    runs-on: ubuntu-latest
 
     steps:
       # Step 1: Check out the repository's code
@@ -25,7 +24,7 @@ jobs:
       # Step 2: Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
-        with: # <--- THIS ENTIRE 'WITH' BLOCK WAS MISSING
+        with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
@@ -41,8 +40,23 @@ jobs:
           docker build -t $ECR_REPOSITORY:$IMAGE_TAG ./dist
           docker push $ECR_REPOSITORY:$IMAGE_TAG
 
-      # Step 5: Deploy to EC2 (This part is a placeholder for now)
-      - name: Deploy to EC2
-        run: |
-          echo "Deployment to EC2 will be configured in the next step."
-          echo "This job is a success for now!"
+      # Step 5: DEPLOYMENT SCRIPT - Connect to EC2 and run the new container
+      - name: Deploy to EC2 instance
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script: |
+            # Login to AWS ECR
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REPOSITORY }}
+            
+            # Pull the latest image from ECR
+            docker pull ${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            
+            # Stop and remove the existing container (if it exists)
+            docker stop blog-container || true
+            docker rm blog-container || true
+            
+            # Run the new container
+            docker run --name blog-container -d -p 80:80 ${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
